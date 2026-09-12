@@ -2,15 +2,15 @@
 
 import { KeyboardEvent, useCallback, useEffect, useRef, useState } from "react";
 import NextImage from "next/image";
+import { AvatarChoiceModal } from "@/components/avatar-choice-modal";
 import { CinemaBackground } from "@/components/cinema-background";
-import { CommunityComposer } from "@/components/community-composer";
-import { IdentityModal } from "@/components/identity-modal";
+import { IdentityModal, type IdentityAction } from "@/components/identity-modal";
 import { CinemaIntro, SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { StoryCard } from "@/components/story-card";
-import { KeepExperience, ReleaseExperience, WaitExperience } from "@/components/theme-experiences";
-import { modes, stories, type CommunityNote, type CommunityUser, type ModeKey, type SavedRecord, type Story } from "@/data/archive";
+import { KeepExperience, ReleaseExperience, WaitExperience, type ThemePublishPayload } from "@/components/theme-experiences";
+import { modes, stories, type CommunityNote, type CommunityUser, type ModeKey, type Story } from "@/data/archive";
 import { communityService } from "@/lib/community-service";
-import { prepareAvatar } from "@/lib/avatar";
+import { anonymousAvatar, prepareAvatar } from "@/lib/avatar";
 
 const tabDetails: Array<{ mode: ModeKey; name: string; copy: string }> = [
   { mode: "keep", name: "挽留", copy: "我还在试着靠近" },
@@ -19,8 +19,7 @@ const tabDetails: Array<{ mode: ModeKey; name: string; copy: string }> = [
 ];
 
 type SortMode = "latest" | "hottest";
-
-const moodNames: Record<ModeKey, string> = { keep: "挽留 · 此刻", release: "放下 · 此刻", wait: "等待 · 此刻" };
+type PendingPublish = ThemePublishPayload & { category: ModeKey };
 
 function relativeTime(date: string) {
   const elapsed = Math.max(0, Date.now() - new Date(date).getTime());
@@ -32,7 +31,7 @@ function relativeTime(date: string) {
 
 function noteToStory(note: CommunityNote): Story {
   return {
-    id: note.id, userId: note.user_id, authorName: note.author_name, authorAvatar: note.author_avatar, category: note.category,
+    id: note.id, userId: note.user_id, authorName: note.author_name, authorAvatar: note.author_avatar, isAnonymous: note.is_anonymous, category: note.category,
     createdAt: note.created_at, mood: note.mood, time: relativeTime(note.created_at), empathy: 0,
     likes: note.likes_count, text: note.content, replies: [], quick: ["我听见了", "抱抱此刻的你"],
   };
@@ -47,6 +46,10 @@ export function ArchiveApp() {
   const [currentUser, setCurrentUser] = useState<CommunityUser | null>(null);
   const [identityOpen, setIdentityOpen] = useState(false);
   const [identityRequired, setIdentityRequired] = useState(false);
+  const [avatarChoiceOpen, setAvatarChoiceOpen] = useState(false);
+  const [avatarChoiceBusy, setAvatarChoiceBusy] = useState(false);
+  const [avatarChoiceError, setAvatarChoiceError] = useState("");
+  const [pendingPublish, setPendingPublish] = useState<PendingPublish | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("latest");
   const [likeOverrides, setLikeOverrides] = useState<Record<string, number>>({});
   const [listSwitching, setListSwitching] = useState(false);
@@ -56,6 +59,7 @@ export function ArchiveApp() {
   const switchTimer = useRef<number | null>(null);
   const toastTimer = useRef<number | null>(null);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const pendingPublishPromise = useRef<{ resolve: () => void; reject: (error: Error) => void } | null>(null);
 
   const showToast = useCallback((message: string) => {
     setToast(message);
@@ -127,31 +131,19 @@ export function ArchiveApp() {
     changeMode(next.mode);
   };
 
-  const saveRecord = (record: SavedRecord, story?: Story) => {
-    let records: SavedRecord[] = [];
-    try {
-      const saved = JSON.parse(localStorage.getItem("weiji-records") || "[]");
-      if (Array.isArray(saved)) records = saved;
-    } catch {
-      records = [];
-    }
-    const next = [record, ...records].slice(0, 30);
-    localStorage.setItem("weiji-records", JSON.stringify(next));
-    setRecordCount(next.length);
-    void story;
-  };
-
   const requireIdentity = () => {
     setIdentityRequired(true);
     setIdentityOpen(true);
   };
 
-  const register = async (username: string, avatarUrl?: string) => {
-    const user = await communityService.register(username, avatarUrl);
+  const authenticate = async (action: IdentityAction, username: string, password: string, avatarUrl?: string) => {
+    const user = action === "register"
+      ? await communityService.register(username, password, avatarUrl)
+      : await communityService.login(username, password);
     setCurrentUser(user);
     setIdentityOpen(false);
     setIdentityRequired(false);
-    showToast(`欢迎回来，${user.username}。`);
+    showToast(`${action === "register" ? "欢迎来到这里" : "欢迎回来"}，${user.username}。`);
   };
 
   const updateAvatar = async (file: File) => {
@@ -160,25 +152,68 @@ export function ArchiveApp() {
       const avatarUrl = await prepareAvatar(file);
       const user = await communityService.updateAvatar(currentUser, avatarUrl);
       setCurrentUser(user);
-      setCommunityNotes((current) => current.map((story) => story.userId === user.id ? { ...story, authorAvatar: avatarUrl } : story));
       showToast("新头像已经替你保存好了。 ");
     } catch (error) {
       showToast(error instanceof Error ? error.message : "头像保存失败，请换一张图片试试。 ");
     }
   };
 
-  const publish = async (payload: { nickname: string; mood: string; avatar: string; content: string }) => {
-    const note = await communityService.createNote(currentUser, {
+  const performPublish = async (payload: PendingPublish, user: CommunityUser, avatarUrl?: string) => {
+    const note = await communityService.createNote(user, {
       content: payload.content,
-      category: displayMode,
+      category: payload.category,
       mood: payload.mood,
-      nickname: payload.nickname,
-      avatar: payload.avatar,
+      nickname: payload.isAnonymous ? "匿名" : user.username,
+      avatar: payload.isAnonymous ? "" : avatarUrl ?? user.avatar_url ?? anonymousAvatar,
+      isAnonymous: payload.isAnonymous,
     });
-    setCommunityNotes((current) => [noteToStory(note), ...current]);
+    if (payload.category === displayMode) setCommunityNotes((current) => [noteToStory(note), ...current]);
     setRecordCount((count) => count + 1);
     setSortMode("latest");
     showToast("这句话已经被放进相似的人海。\u00a0🫧");
+  };
+
+  const requestPublish = (payload: ThemePublishPayload) => {
+    if (!currentUser) {
+      requireIdentity();
+      return Promise.reject(new Error("请先登录，草稿已经替你保留。"));
+    }
+    const request = { ...payload, category: displayMode };
+    if (payload.isAnonymous || currentUser.avatar_url) return performPublish(request, currentUser);
+
+    setPendingPublish(request);
+    setAvatarChoiceError("");
+    setAvatarChoiceOpen(true);
+    return new Promise<void>((resolve, reject) => {
+      pendingPublishPromise.current = { resolve, reject };
+    });
+  };
+
+  const finishPendingPublish = async (avatarUrl: string, saveToProfile: boolean) => {
+    if (!pendingPublish || !currentUser || avatarChoiceBusy) return;
+    setAvatarChoiceBusy(true);
+    setAvatarChoiceError("");
+    try {
+      const user = saveToProfile ? await communityService.updateAvatar(currentUser, avatarUrl) : currentUser;
+      if (saveToProfile) setCurrentUser(user);
+      await performPublish(pendingPublish, user, avatarUrl);
+      setAvatarChoiceOpen(false);
+      setPendingPublish(null);
+      pendingPublishPromise.current?.resolve();
+      pendingPublishPromise.current = null;
+    } catch (error) {
+      setAvatarChoiceError(error instanceof Error ? error.message : "头像保存或发帖失败，请重试。");
+    } finally {
+      setAvatarChoiceBusy(false);
+    }
+  };
+
+  const cancelPendingPublish = () => {
+    if (avatarChoiceBusy) return;
+    setAvatarChoiceOpen(false);
+    setPendingPublish(null);
+    pendingPublishPromise.current?.reject(new Error("已取消发送，草稿仍然保留。"));
+    pendingPublishPromise.current = null;
   };
 
   const changeSort = (next: SortMode) => {
@@ -193,6 +228,8 @@ export function ArchiveApp() {
   const logout = () => {
     communityService.logout();
     setCurrentUser(null);
+    setIdentityRequired(true);
+    setIdentityOpen(true);
     showToast("已经退出，写下的心事仍被妥善保存。 ");
   };
 
@@ -253,9 +290,9 @@ export function ArchiveApp() {
               <span className="large-number">{mode.number}</span>
             </div>
             <div className="mode-experience" aria-live="polite">
-              {displayMode === "keep" && <KeepExperience showToast={showToast} />}
-              {displayMode === "release" && <ReleaseExperience showToast={showToast} />}
-              {displayMode === "wait" && <WaitExperience showToast={showToast} onSaved={saveRecord} />}
+              {displayMode === "keep" && <KeepExperience showToast={showToast} onPublish={requestPublish} />}
+              {displayMode === "release" && <ReleaseExperience showToast={showToast} onPublish={requestPublish} />}
+              {displayMode === "wait" && <WaitExperience showToast={showToast} onPublish={requestPublish} />}
             </div>
           </article>
 
@@ -278,7 +315,6 @@ export function ArchiveApp() {
             <div><p>COMMUNITY ECHOES · 0{visibleStories.length}</p><h2 id="storyWallTitle">{mode.wallTitle.split("\n").map((line, index) => <span key={line}>{index > 0 && <br />}{line}</span>)}</h2></div>
             <p>左边、右边，都有人正在经历相似的时刻。<br />点开任意一格，留下一句温柔的回应。</p>
           </header>
-          <CommunityComposer mode={displayMode} user={currentUser} onRequireIdentity={requireIdentity} onPublish={publish} />
           <div className="story-toolbar">
             <div role="tablist" aria-label="社区内容排序">
               <button role="tab" aria-selected={sortMode === "latest"} className={sortMode === "latest" ? "active" : ""} type="button" onClick={() => changeSort("latest")}><b>最新</b><span>LATEST</span></button>
@@ -313,7 +349,15 @@ export function ArchiveApp() {
         <SiteFooter />
       </main>
       <div className={`toast${toastVisible ? " show" : ""}`} role="status" aria-live="polite">{toast || "已经替你收好。"}</div>
-      <IdentityModal open={identityOpen} required={identityRequired} onClose={() => { setIdentityOpen(false); setIdentityRequired(false); }} onSubmit={register} />
+      <AvatarChoiceModal
+        open={avatarChoiceOpen}
+        busy={avatarChoiceBusy}
+        error={avatarChoiceError}
+        onSelect={(avatarUrl) => void finishPendingPublish(avatarUrl, true)}
+        onSkip={() => void finishPendingPublish(anonymousAvatar, false)}
+        onCancel={cancelPendingPublish}
+      />
+      <IdentityModal open={identityOpen} required={identityRequired} onClose={() => { setIdentityOpen(false); setIdentityRequired(false); }} onSubmit={authenticate} />
     </div>
   );
 }

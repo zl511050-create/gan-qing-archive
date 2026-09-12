@@ -15,6 +15,7 @@ export interface Story {
   userId?: string;
   authorName?: string;
   authorAvatar?: string;
+  isAnonymous?: boolean;
   category?: ModeKey;
   createdAt?: string;
   source?: string;
@@ -41,6 +42,7 @@ export interface CommunityNote {
   user_id: string;
   author_name: string;
   author_avatar?: string;
+  is_anonymous?: boolean;
   content: string;
   category: ModeKey;
   mood: string;

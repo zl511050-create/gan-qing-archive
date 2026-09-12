@@ -19,15 +19,17 @@ function makeAvatarPreset(emoji: string, start: string, end: string, accent: str
 }
 
 export const avatarPresets = [
-  makeAvatarPreset("🫧", "#dff6ff", "#cce8ff", "#ffffff"),
-  makeAvatarPreset("🌤️", "#ffe9cc", "#ffd5d8", "#fff8ef"),
-  makeAvatarPreset("🌙", "#dfe7ff", "#cdd9ff", "#f3f6ff"),
-  makeAvatarPreset("🌿", "#d9f7e8", "#c7f2d5", "#f7fffb"),
-  makeAvatarPreset("☀️", "#ffe2ad", "#ffd6c7", "#fffef2"),
-  makeAvatarPreset("💌", "#dfe8ff", "#dfe9ff", "#f5f7ff"),
-  makeAvatarPreset("🍊", "#ffe0b8", "#ffddb1", "#fff7ef"),
-  makeAvatarPreset("🌊", "#d8f2ff", "#cbe5ff", "#f3fbff"),
+  "/assets/avatars/avatar-01.png",
+  "/assets/avatars/avatar-02.png",
+  "/assets/avatars/avatar-03.png",
+  "/assets/avatars/avatar-04.png",
+  "/assets/avatars/avatar-05.png",
+  "/assets/avatars/avatar-06.png",
+  "/assets/avatars/avatar-07.png",
+  "/assets/avatars/avatar-08.png",
 ];
+
+export const anonymousAvatar = makeAvatarPreset("🫧", "#dfe9ef", "#cdd9df", "#ffffff");
 
 export async function prepareAvatar(file: File): Promise<string> {
   if (!file.type.startsWith("image/")) throw new Error("请选择 JPG、PNG 或 WebP 图片");

@@ -1,20 +1,25 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { prepareAvatar } from "@/lib/avatar";
+import Image from "next/image";
+import { avatarPresets } from "@/lib/avatar";
+
+export type IdentityAction = "login" | "register";
 
 interface IdentityModalProps {
   open: boolean;
   required?: boolean;
   onClose: () => void;
-  onSubmit: (username: string, avatarUrl?: string) => Promise<void>;
+  onSubmit: (action: IdentityAction, username: string, password: string, avatarUrl?: string) => Promise<void>;
 }
 
 export function IdentityModal({ open, required = false, onClose, onSubmit }: IdentityModalProps) {
   const [username, setUsername] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [password, setPassword] = useState("");
+  const [action, setAction] = useState<IdentityAction>("login");
   const [avatarUrl, setAvatarUrl] = useState("");
-  const [avatarError, setAvatarError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -26,12 +31,16 @@ export function IdentityModal({ open, required = false, onClose, onSubmit }: Ide
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const value = username.trim();
-    if (!value || saving) return inputRef.current?.focus();
+    if (!value || password.length !== 4 || saving) return inputRef.current?.focus();
     setSaving(true);
+    setError("");
     try {
-      await onSubmit(value, avatarUrl || undefined);
+      await onSubmit(action, value, password, action === "register" ? avatarUrl || undefined : undefined);
       setUsername("");
+      setPassword("");
       setAvatarUrl("");
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "暂时无法登录，请稍后再试");
     } finally {
       setSaving(false);
     }
@@ -45,24 +54,13 @@ export function IdentityModal({ open, required = false, onClose, onSubmit }: Ide
         {!required && <button className="modal-close" type="button" aria-label="关闭" onClick={onClose}>×</button>}
         <p className="dialog-eyebrow">A NAME FOR THIS MOMENT</p>
         <span className="dialog-bubbles" aria-hidden="true">🫧</span>
-        <h2 id="identity-title">在情绪档案中<br />留下你的称呼</h2>
-        <p>不需要手机号或密码。这个名字只用来认出你写下的心事。</p>
+        <h2 id="identity-title">回到你的<br />情绪档案</h2>
+        <p>一个昵称，一枚四位数字密码。登录会一直保留，直到你主动退出。</p>
+        <div className="identity-action-tabs" role="tablist" aria-label="选择登录或注册">
+          <button type="button" role="tab" aria-selected={action === "login"} onClick={() => { setAction("login"); setError(""); }}>登录</button>
+          <button type="button" role="tab" aria-selected={action === "register"} onClick={() => { setAction("register"); setError(""); }}>注册</button>
+        </div>
         <form onSubmit={submit}>
-          <div className="avatar-register-row">
-            <label className={`avatar-picker${avatarUrl ? " has-avatar" : ""}`} style={avatarUrl ? { backgroundImage: `url(${avatarUrl})` } : undefined}>
-              <input type="file" accept="image/png,image/jpeg,image/webp" onChange={async (event) => {
-                const file = event.target.files?.[0];
-                if (!file) return;
-                setAvatarError("");
-                try { setAvatarUrl(await prepareAvatar(file)); }
-                catch (error) { setAvatarError(error instanceof Error ? error.message : "头像处理失败"); }
-                event.target.value = "";
-              }} />
-              <span>{avatarUrl ? "更换" : "＋"}</span>
-            </label>
-            <div><b>添加头像</b><small>可选 · 自动裁剪并压缩保存</small></div>
-          </div>
-          {avatarError && <p className="avatar-error" role="alert">{avatarError}</p>}
           <label htmlFor="identity-name">昵称 / 名称</label>
           <input
             id="identity-name"
@@ -73,9 +71,41 @@ export function IdentityModal({ open, required = false, onClose, onSubmit }: Ide
             value={username}
             onChange={(event) => setUsername(event.target.value)}
           />
-          <button type="submit" disabled={!username.trim() || saving}>{saving ? "正在收录…" : "进入情绪档案"}<span>↗</span></button>
+          <label htmlFor="identity-password">4 位数字密码</label>
+          <input
+            id="identity-password"
+            type="password"
+            inputMode="numeric"
+            pattern="[0-9]{4}"
+            maxLength={4}
+            autoComplete={action === "login" ? "current-password" : "new-password"}
+            placeholder="请输入 4 位数字"
+            value={password}
+            onChange={(event) => setPassword(event.target.value.replace(/\D/g, "").slice(0, 4))}
+          />
+          {action === "register" && (
+            <fieldset className="identity-avatar-fieldset">
+              <legend>选择头像 <span>可稍后再选</span></legend>
+              <div className="identity-avatar-grid" aria-label="注册头像">
+                {avatarPresets.map((preset, index) => (
+                  <button
+                    type="button"
+                    className={avatarUrl === preset ? "selected" : ""}
+                    aria-label={`选择第 ${index + 1} 个头像`}
+                    aria-pressed={avatarUrl === preset}
+                    onClick={() => setAvatarUrl((current) => current === preset ? "" : preset)}
+                    key={preset}
+                  >
+                    <Image src={preset} alt="" width={96} height={96} sizes="56px" />
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          {error && <p className="identity-error" role="alert">{error}</p>}
+          <button type="submit" disabled={!username.trim() || password.length !== 4 || saving}>{saving ? "正在确认…" : action === "login" ? "登录情绪档案" : "注册并进入"}<span>↗</span></button>
         </form>
-        <small>身份凭据会保存在当前浏览器中，下次回来仍能认出你。</small>
+        <small>{action === "login" ? "刷新、关闭网页或断网都不会退出登录。" : "昵称注册后不可重复；密码仅保存为不可逆哈希。"}</small>
       </section>
     </div>
   );

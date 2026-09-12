@@ -16,11 +16,13 @@ export interface CreateNoteInput {
   mood: string;
   nickname?: string;
   avatar?: string;
+  isAnonymous?: boolean;
 }
 
 export interface CommunityDataService {
   getCurrentUser(): CommunityUser | null;
-  register(username: string, avatarUrl?: string): Promise<CommunityUser>;
+  register(username: string, password: string, avatarUrl?: string): Promise<CommunityUser>;
+  login(username: string, password: string): Promise<CommunityUser>;
   updateAvatar(user: CommunityUser, avatarUrl: string): Promise<CommunityUser>;
   logout(): void;
   deactivate(user: CommunityUser): Promise<void>;
@@ -53,6 +55,28 @@ function write(key: string, value: unknown) {
   if (typeof window !== "undefined") localStorage.setItem(key, JSON.stringify(value));
 }
 
+type StoredCommunityUser = CommunityUser & { password_hash: string };
+
+async function hashPassword(username: string, password: string) {
+  const bytes = new TextEncoder().encode(`weiji:${username.trim().toLocaleLowerCase()}:${password}`);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function validateCredentials(username: string, password: string) {
+  const cleanName = username.trim();
+  if (!cleanName || cleanName.length > 24) throw new Error("昵称需为 1—24 个字符");
+  if (!/^\d{4}$/.test(password)) throw new Error("密码必须是 4 位数字");
+  return cleanName;
+}
+
+function createSession(user: Omit<CommunityUser, "token"> & Partial<Pick<CommunityUser, "token">>): CommunityUser {
+  const session = { ...user, token: user.token || uuid() } as CommunityUser;
+  write(KEYS.session, session);
+  if (typeof document !== "undefined") document.cookie = `weiji_identity=${encodeURIComponent(session.token)}; path=/; max-age=315360000; SameSite=Lax`;
+  return session;
+}
+
 function toCommunityNote(row: Record<string, unknown>): CommunityNote {
   const likes = Number(row.likes ?? row.likes_count ?? 0) || 0;
   return {
@@ -60,6 +84,7 @@ function toCommunityNote(row: Record<string, unknown>): CommunityNote {
     user_id: String(row.user_id ?? row.id ?? uuid()),
     author_name: String(row.nickname ?? row.author_name ?? "匿名"),
     author_avatar: typeof row.avatar === "string" ? row.avatar : typeof row.author_avatar === "string" ? row.author_avatar : undefined,
+    is_anonymous: Boolean(row.is_anonymous),
     content: String(row.content ?? ""),
     category: (row.category as ModeKey) ?? "keep",
     mood: String(row.mood ?? "心事"),
@@ -73,30 +98,44 @@ class LocalCommunityService implements CommunityDataService {
     return read<CommunityUser | null>(KEYS.session, null);
   }
 
-  async register(username: string, avatarUrl?: string) {
-    const users = read<CommunityUser[]>(KEYS.users, []);
-    const cleanName = username.trim();
+  async register(username: string, password: string, avatarUrl?: string) {
+    const users = read<StoredCommunityUser[]>(KEYS.users, []);
+    const cleanName = validateCredentials(username, password);
     const existing = users.find((item) => item.username.toLocaleLowerCase() === cleanName.toLocaleLowerCase());
-    const user: CommunityUser = existing
-      ? { ...existing, avatar_url: avatarUrl || existing.avatar_url }
-      : { id: uuid(), username: cleanName, token: uuid(), avatar_url: avatarUrl, created_at: new Date().toISOString() };
-    write(KEYS.users, existing ? users.map((item) => item.id === user.id ? user : item) : [...users, user]);
-    write(KEYS.session, user);
-    if (typeof document !== "undefined") document.cookie = `weiji_identity=${encodeURIComponent(user.token)}; path=/; max-age=31536000; SameSite=Lax`;
-    return user;
+    if (existing) throw new Error("这个昵称已经被注册，请直接登录或换一个昵称");
+    const stored: StoredCommunityUser = {
+      id: uuid(), username: cleanName, token: "", created_at: new Date().toISOString(),
+      password_hash: await hashPassword(cleanName, password),
+      avatar_url: avatarUrl,
+    };
+    write(KEYS.users, [...users, stored]);
+    const { password_hash: _passwordHash, token: _token, ...user } = stored;
+    void _passwordHash; void _token;
+    return createSession(user);
+  }
+
+  async login(username: string, password: string) {
+    const cleanName = validateCredentials(username, password);
+    const users = read<StoredCommunityUser[]>(KEYS.users, []);
+    const existing = users.find((item) => item.username.toLocaleLowerCase() === cleanName.toLocaleLowerCase());
+    if (!existing || !existing.password_hash || existing.password_hash !== await hashPassword(cleanName, password)) {
+      throw new Error("昵称或密码不正确");
+    }
+    const { password_hash: _passwordHash, token: _token, ...user } = existing;
+    void _passwordHash; void _token;
+    return createSession(user);
   }
 
   async updateAvatar(user: CommunityUser, avatarUrl: string) {
     const updated = { ...user, avatar_url: avatarUrl };
-    write(KEYS.users, read<CommunityUser[]>(KEYS.users, []).map((item) => item.id === user.id ? updated : item));
+    write(KEYS.users, read<StoredCommunityUser[]>(KEYS.users, []).map((item) => item.id === user.id ? { ...item, avatar_url: avatarUrl } : item));
     write(KEYS.session, updated);
-    write(KEYS.notes, read<CommunityNote[]>(KEYS.notes, []).map((note) => note.user_id === user.id ? { ...note, author_avatar: avatarUrl } : note));
-    write(KEYS.replies, read<CommunityReply[]>(KEYS.replies, []).map((reply) => reply.user_id === user.id ? { ...reply, author_avatar: avatarUrl } : reply));
     return updated;
   }
 
   logout() {
     localStorage.removeItem(KEYS.session);
+    localStorage.removeItem("weiji-identity-invited");
     if (typeof document !== "undefined") document.cookie = "weiji_identity=; path=/; max-age=0; SameSite=Lax";
   }
 
@@ -113,7 +152,7 @@ class LocalCommunityService implements CommunityDataService {
     const note: CommunityNote = {
       id: uuid(), user_id: user?.id ?? uuid(), author_name: input.nickname ?? user?.username ?? "匿名",
       author_avatar: input.avatar ?? user?.avatar_url, content: input.content.trim(),
-      category: input.category, mood: input.mood, likes_count: 0, created_at: new Date().toISOString(),
+      is_anonymous: Boolean(input.isAnonymous), category: input.category, mood: input.mood, likes_count: 0, created_at: new Date().toISOString(),
     };
     write(KEYS.notes, [note, ...read<CommunityNote[]>(KEYS.notes, [])].slice(0, 300));
     return note;
@@ -176,9 +215,59 @@ class LocalCommunityService implements CommunityDataService {
 }
 
 class SupabaseCommunityService extends LocalCommunityService {
+  constructor(private readonly client: NonNullable<typeof supabase>) {
+    super();
+  }
+
+  override async register(username: string, password: string, avatarUrl?: string) {
+    const cleanName = validateCredentials(username, password);
+    const { data, error } = await this.client.rpc("register_community_user", {
+      p_username: cleanName,
+      p_password: password,
+      p_avatar_url: avatarUrl ?? null,
+    });
+    if (error) {
+      if (error.message.includes("nickname_taken")) throw new Error("这个昵称已经被注册，请直接登录或换一个昵称");
+      if (error.message.includes("invalid_password")) throw new Error("密码必须是 4 位数字");
+      throw new Error("注册服务暂不可用，请确认已执行最新的 Supabase 数据库脚本");
+    }
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) throw new Error("注册失败，请稍后再试");
+    return createSession({ id: String(row.id), username: String(row.username), token: String(row.session_token || ""), avatar_url: row.avatar_url || undefined, created_at: String(row.created_at) });
+  }
+
+  override async login(username: string, password: string) {
+    const cleanName = validateCredentials(username, password);
+    const { data, error } = await this.client.rpc("login_community_user", {
+      p_username: cleanName,
+      p_password: password,
+    });
+    if (error) throw new Error("登录服务暂不可用，请确认已执行最新的 Supabase 数据库脚本");
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) throw new Error("昵称或密码不正确");
+    return createSession({ id: String(row.id), username: String(row.username), token: String(row.session_token || ""), avatar_url: row.avatar_url || undefined, created_at: String(row.created_at) });
+  }
+
+  override async updateAvatar(user: CommunityUser, avatarUrl: string) {
+    const { data, error } = await this.client.rpc("update_community_user_avatar", {
+      p_user_id: user.id,
+      p_session_token: user.token,
+      p_avatar_url: avatarUrl,
+    });
+    if (error) {
+      if (error.message.includes("invalid_session")) throw new Error("登录凭据已更新，请退出后重新登录再设置头像");
+      throw new Error("头像暂时无法保存到云端，请稍后再试");
+    }
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) throw new Error("头像保存失败，请稍后再试");
+    const updated = { ...user, username: String(row.username), avatar_url: String(row.avatar_url) };
+    write(KEYS.session, updated);
+    return updated;
+  }
+
   override async listNotes(category: ModeKey) {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await this.client
         .from("posts")
         .select("*")
         .eq("category", category)
@@ -195,25 +284,23 @@ class SupabaseCommunityService extends LocalCommunityService {
       id: uuid(),
       nickname: input.nickname ?? user?.username ?? "匿名",
       avatar: input.avatar ?? user?.avatar_url ?? "",
+      user_id: user?.id ?? null,
+      is_anonymous: Boolean(input.isAnonymous),
       category: input.category,
       mood: input.mood,
       content: input.content.trim(),
       likes: 0,
       created_at: new Date().toISOString(),
     };
-    try {
-      const { data, error } = await supabase.from("posts").insert(note).select().single();
-      if (error) throw error;
-      return toCommunityNote((data ?? note) as Record<string, unknown>);
-    } catch {
-      return super.createNote(user, input);
-    }
+    const { data, error } = await this.client.from("posts").insert(note).select().single();
+    if (error) throw new Error(`帖子未能写入云端：${error.message}`);
+    return toCommunityNote((data ?? note) as Record<string, unknown>);
   }
 
   override async getLikeState(noteId: string, userId: string, initialCount: number) {
     if (noteId.startsWith("seed-")) return super.getLikeState(noteId, userId, initialCount);
     try {
-      const { data, error } = await supabase.from("posts").select("likes").eq("id", noteId).single();
+      const { data, error } = await this.client.from("posts").select("likes").eq("id", noteId).single();
       if (error) throw error;
       const count = Number(data?.likes ?? initialCount ?? 0);
       return { liked: false, count };
@@ -225,10 +312,10 @@ class SupabaseCommunityService extends LocalCommunityService {
   override async toggleLike(noteId: string, userId: string, initialCount: number) {
     if (noteId.startsWith("seed-")) return super.toggleLike(noteId, userId, initialCount);
     try {
-      const { data: currentData, error: currentError } = await supabase.from("posts").select("likes").eq("id", noteId).single();
+      const { data: currentData, error: currentError } = await this.client.from("posts").select("likes").eq("id", noteId).single();
       if (currentError) throw currentError;
       const count = Math.max(0, Number(currentData?.likes ?? initialCount ?? 0) + 1);
-      const { data, error } = await supabase.from("posts").update({ likes: count }).eq("id", noteId).select().single();
+      const { data, error } = await this.client.from("posts").update({ likes: count }).eq("id", noteId).select().single();
       if (error) throw error;
       return { liked: true, count: Number(data?.likes ?? count) };
     } catch {
@@ -238,5 +325,5 @@ class SupabaseCommunityService extends LocalCommunityService {
 }
 
 export const communityService: CommunityDataService = supabase
-  ? new SupabaseCommunityService()
+  ? new SupabaseCommunityService(supabase)
   : new LocalCommunityService();
