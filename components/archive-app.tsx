@@ -5,8 +5,8 @@ import NextImage from "next/image";
 import { AvatarChoiceModal } from "@/components/avatar-choice-modal";
 import { CinemaBackground } from "@/components/cinema-background";
 import { IdentityModal, type IdentityAction } from "@/components/identity-modal";
+import { PostFeed } from "@/components/post-feed";
 import { CinemaIntro, SiteFooter, SiteHeader } from "@/components/site-chrome";
-import { StoryCard } from "@/components/story-card";
 import { KeepExperience, ReleaseExperience, WaitExperience, type ThemePublishPayload } from "@/components/theme-experiences";
 import { modes, stories, type CommunityNote, type CommunityUser, type ModeKey, type Story } from "@/data/archive";
 import { communityService } from "@/lib/community-service";
@@ -259,6 +259,19 @@ export function ArchiveApp() {
       <main id="top">
         <CinemaIntro />
 
+        <figure className="interlude-cinema" aria-label="通往远方的城市阶梯氛围画面">
+          <NextImage
+            src="/stairs1.jpg"
+            alt="阳光与绿意环绕的城市阶梯"
+            fill
+            sizes="(max-width: 860px) calc(100vw - 70px), 90vw"
+          />
+          <span className="interlude-vignette" aria-hidden="true" />
+          <figcaption className="interlude-caption">
+            <span>RECORD</span>
+          </figcaption>
+        </figure>
+
         <nav className="state-switcher" role="tablist" aria-label="选择你此刻的状态">
           {tabDetails.map((tab, index) => {
             const selected = selectedMode === tab.mode;
@@ -322,26 +335,22 @@ export function ArchiveApp() {
             </div>
             <p>{visibleStories.length} 封未寄片段</p>
           </div>
-          <div className={`story-list${listSwitching ? " list-switching" : ""}`} aria-live="polite">
-            {visibleStories.map((story) => (
-              <StoryCard
-                story={story}
-                currentUser={currentUser}
-                justPosted={communityNotes[0]?.id === story.id}
-                onRequireIdentity={requireIdentity}
-                onDeleted={(id) => {
-                  setCommunityNotes((current) => current.filter((item) => item.id !== id));
-                  setRecordCount((count) => Math.max(0, count - 1));
-                  showToast("这条心事已经封存。 ");
-                }}
-                onLikeChanged={(id, count) => {
-                  setLikeOverrides((current) => ({ ...current, [id]: count }));
-                  setCommunityNotes((current) => current.map((item) => item.id === id ? { ...item, likes: count } : item));
-                }}
-                key={`${story.id}-${currentUser?.id ?? "guest"}`}
-              />
-            ))}
-          </div>
+          <PostFeed
+            stories={visibleStories}
+            currentUser={currentUser}
+            switching={listSwitching}
+            justPostedId={communityNotes[0]?.id}
+            onRequireIdentity={requireIdentity}
+            onDeleted={(id) => {
+              setCommunityNotes((current) => current.filter((item) => item.id !== id));
+              setRecordCount((count) => Math.max(0, count - 1));
+              showToast("这条心事已经封存。 ");
+            }}
+            onLikeChanged={(id, count) => {
+              setLikeOverrides((current) => ({ ...current, [id]: count }));
+              setCommunityNotes((current) => current.map((item) => item.id === id ? { ...item, likes: count } : item));
+            }}
+          />
           <button className="more-button" type="button" disabled={moreRead} onClick={() => setMoreRead(true)}>
             {moreRead ? "这一刻，先读到这里" : <>再读一些 <span>↓</span></>}
           </button>

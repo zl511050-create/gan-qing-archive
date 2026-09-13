@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import type { CommunityReply, CommunityUser, Story } from "@/data/archive";
+import { avatarPresets } from "@/lib/avatar";
 import { communityService } from "@/lib/community-service";
 
 interface StoryCardProps {
@@ -11,6 +12,14 @@ interface StoryCardProps {
   onRequireIdentity: () => void;
   onDeleted: (id: string) => void;
   onLikeChanged: (id: string, count: number) => void;
+}
+
+function stableAvatarFor(story: Story) {
+  if (story.authorAvatar) return story.authorAvatar;
+  const seed = story.id ?? `${story.authorName ?? story.source ?? "未署名"}-${story.text}`;
+  let hash = 0;
+  for (const character of seed) hash = ((hash << 5) - hash + character.codePointAt(0)!) | 0;
+  return avatarPresets[Math.abs(hash) % avatarPresets.length];
 }
 
 export function StoryCard({ story, currentUser, justPosted = false, onRequireIdentity, onDeleted, onLikeChanged }: StoryCardProps) {
@@ -110,31 +119,33 @@ export function StoryCard({ story, currentUser, justPosted = false, onRequireIde
     ...story.replies.map((content, index) => ({ id: `seed-${index}`, author_name: "匿名", author_avatar: undefined as string | undefined, content })),
     ...savedReplies,
   ];
+  const authorName = story.isAnonymous ? "匿名" : story.authorName ?? story.source ?? "未署名";
+  const avatarUrl = story.isAnonymous ? undefined : stableAvatarFor(story);
 
   return (
     <article className={`story-card${story.featured ? " featured-story" : ""}${justPosted ? " just-posted" : ""}`}>
       <span className="card-bubble" aria-hidden="true">🫧</span>
       {Boolean(story.userId && currentUser && story.userId === currentUser.id) && <button className="delete-note" type="button" onClick={remove} title="删除 / 封存这条心事" aria-label="删除或封存这条心事">⌁</button>}
       {bubbleKey > 0 && <span className="bubble-pop" key={bubbleKey} aria-hidden="true">🫧</span>}
-      <div className="story-meta">
-        <span className={`story-author${story.isAnonymous ? " anonymous-author" : ""}`}>
-          {!story.isAnonymous && <><i className={story.authorAvatar ? "has-avatar" : ""} style={story.authorAvatar ? { backgroundImage: `url(${story.authorAvatar})` } : undefined}>{story.authorAvatar ? "" : (story.authorName ?? story.source ?? "匿").slice(0, 1)}</i>{story.authorName ?? story.source ?? "匿名"} · </>}
-          {story.mood}
-        </span>
-        <span>{story.time}</span>
-      </div>
+      <header className="story-meta">
+        <div className="story-identity">
+          {story.isAnonymous
+            ? <i className="story-avatar anonymous-badge" aria-hidden="true">匿</i>
+            : <i className="story-avatar has-avatar" aria-hidden="true" style={{ backgroundImage: `url(${avatarUrl})` }} />}
+          <span className="story-author-name">{authorName}</span>
+        </div>
+        <time className="story-time" dateTime={story.createdAt}>{story.time}</time>
+      </header>
       <p>{story.text}</p>
       <div className="story-actions">
         <button type="button" className={`empathy-button${empathyActive ? " active" : ""}`} aria-pressed={empathyActive} onClick={() => {
           setEmpathyActive((active) => !active);
           if (!empathyActive) releaseBubble();
         }}><span>🫧</span> 我也经历过 <b>{story.empathy + (empathyActive ? 1 : 0)}</b></button>
-        <span className="action-pair">
-          <button type="button" className={`like-button${likeActive ? " active" : ""}${likeAnimating ? " heart-beat" : ""}`} aria-label={likeActive ? "取消点赞" : "点赞"} aria-pressed={likeActive} onClick={toggleLike}>
-            {likeActive ? "♥" : "♡"} <b>{likeCount}</b>
-          </button>
-          <button type="button" className="comment-button" aria-expanded={drawerOpen} onClick={() => setDrawerOpen((open) => !open)}>回应 {replies.length}</button>
-        </span>
+        <button type="button" className={`like-button${likeActive ? " active" : ""}`} aria-label={likeActive ? "已点赞" : "点赞"} aria-pressed={likeActive} onClick={toggleLike}>
+          <span aria-hidden="true">{likeActive ? "♥" : "♡"}</span> <b className={likeAnimating ? "like-count-bump" : ""}>{likeCount}</b>
+        </button>
+        <button type="button" className="comment-button" aria-expanded={drawerOpen} onClick={() => setDrawerOpen((open) => !open)}>回应 <b>{replies.length}</b></button>
       </div>
       <div className="comment-drawer" hidden={!drawerOpen}>
         {replies.map((reply) => <p className="reply-bubble" key={reply.id}>{reply.author_avatar ? <i className="reply-avatar" style={{ backgroundImage: `url(${reply.author_avatar})` }} /> : <span aria-hidden="true">🫧</span>}<b>{reply.author_name}：</b>{reply.content}</p>)}
