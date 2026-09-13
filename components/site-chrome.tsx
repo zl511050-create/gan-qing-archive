@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { CuteAudioPlayer } from "@/components/cute-audio-player";
 import type { CommunityUser } from "@/data/archive";
 
 interface SiteHeaderProps {
@@ -50,6 +51,7 @@ export function CinemaIntro() {
             <Image src="/assets/intro-your-name-scene.png" alt="蓝天下，两位少年在绿意环绕的城市阶梯上相遇" fill sizes="(max-width: 860px) 100vw, 58vw" priority />
           </figure>
           <h1 id="main-title">他，<br />你遗憾吗？</h1>
+          <CuteAudioPlayer />
         </div>
         <div className="intro-side">
           <p className="intro-note">有些话不必寄到谁的手里。<br />写下来，就算是给今天一个交代。</p>
