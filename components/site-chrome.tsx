@@ -20,22 +20,26 @@ export function SiteHeader({ recordCount, user, onLogin, onLogout, onDeactivate,
       </a>
       <p className="date-line">今天，也允许想起。</p>
       {user ? (
-        <details className="identity-menu">
-          <summary>
-            <i className={`header-avatar${user.avatar_url ? " has-avatar" : ""}`} style={user.avatar_url ? { backgroundImage: `url(${user.avatar_url})` } : undefined}>{user.avatar_url ? "" : user.username.slice(0, 1)}</i>
-            <b>未寄 · {user.username}</b><span className="record-count">{String(recordCount).padStart(2, "0")}</span>
-          </summary>
-          <div>
-            <label className="avatar-menu-action">更换头像<input type="file" accept="image/png,image/jpeg,image/webp" onChange={async (event) => {
-              const file = event.target.files?.[0];
-              if (file) await onAvatarChange(file);
-              event.target.value = "";
-            }} /></label>
-            <button type="button" onClick={() => document.querySelector("#community")?.scrollIntoView({ behavior: "smooth" })}>我的记录</button>
-            <button type="button" onClick={onLogout}>退出登录</button>
-            <button className="danger-action" type="button" onClick={onDeactivate}>注销档案</button>
-          </div>
-        </details>
+        <div className="identity-actions">
+          <details className="identity-menu">
+            <summary aria-label={`账户菜单：${user.username}`}>
+              <i className={`header-avatar${user.avatar_url ? " has-avatar" : ""}`} style={user.avatar_url ? { backgroundImage: `url(${user.avatar_url})` } : undefined}>{user.avatar_url ? "" : user.username.slice(0, 1)}</i>
+              <b>未寄 · {user.username}</b><span className="record-count">{String(recordCount).padStart(2, "0")}</span>
+            </summary>
+            <div>
+              <label className="avatar-menu-action">更换头像<input type="file" accept="image/png,image/jpeg,image/webp" onChange={async (event) => {
+                const file = event.target.files?.[0];
+                if (file) await onAvatarChange(file);
+                event.target.value = "";
+              }} /></label>
+              <button type="button" onClick={() => document.querySelector("#community")?.scrollIntoView({ behavior: "smooth" })}>我的记录</button>
+              <button className="danger-action" type="button" onClick={onDeactivate}>注销档案</button>
+            </div>
+          </details>
+          <button className="header-logout-button" type="button" onClick={onLogout} aria-label="退出登录">
+            <span className="logout-long">退出登录</span><span className="logout-short">退出</span>
+          </button>
+        </div>
       ) : <button className="quiet-button" type="button" onClick={onLogin}>留下称呼 <span>＋</span></button>}
     </header>
   );

@@ -63,6 +63,7 @@ a:focus-visible { outline: 2px solid #0f172a; outline-offset: 3px; }
 .date-line { margin: 0; color: var(--muted); font-size: 13px; letter-spacing: .08em; }
 .quiet-button { justify-self: end; border: 0; background: none; cursor: pointer; font-size: 13px; letter-spacing: .08em; }
 .quiet-button span { display: inline-grid; place-items: center; width: 27px; height: 27px; margin-left: 8px; color: var(--paper); background: var(--ink); border-radius: 50%; font: 10px var(--mono); }
+.identity-actions { display: flex; align-items: center; justify-self: end; gap: 13px; min-width: 0; }
 .identity-menu { position: relative; justify-self: end; }
 .identity-menu summary { display: flex; align-items: center; gap: 9px; list-style: none; cursor: pointer; color: #0f172a; font-size: 13px; letter-spacing: .06em; }
 .identity-menu summary::-webkit-details-marker { display: none; }
@@ -73,6 +74,9 @@ a:focus-visible { outline: 2px solid #0f172a; outline-offset: 3px; }
 .identity-menu > div button { padding: 10px 12px; text-align: left; border: 0; border-radius: 8px; background: transparent; cursor: pointer; font-size: 12px; }
 .identity-menu > div button:hover { background: rgba(15,23,42,.07); }
 .identity-menu > div .danger-action { color: #9f2936; }
+.header-logout-button { min-height: 38px; padding: 0 16px; color: #334155; border: 1px solid rgba(51,65,85,.25); border-radius: 999px; background: rgba(255,255,255,.5); cursor: pointer; font-size: 12px; letter-spacing: .08em; transition: color .18s ease, border-color .18s ease, background .18s ease, transform .18s ease; }
+.header-logout-button:hover { color: #fff; border-color: #0f172a; background: #0f172a; transform: translateY(-1px); }
+.logout-short { display: none; }
 .avatar-menu-action { padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; }
 .avatar-menu-action:hover { background: rgba(15,23,42,.07); }
 .avatar-menu-action input, .avatar-picker input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
@@ -504,7 +508,12 @@ input::placeholder { font-family: var(--sans); }
   .comment-form button { min-width: 54px; min-height: 44px; }
   .comment-drawer { scroll-margin-bottom: 32vh; }
   .site-header { grid-template-columns: 1fr auto; padding: 0 22px; }
-  .identity-menu summary b { max-width: 34vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .identity-actions { gap: 8px; }
+  .identity-menu summary { gap: 6px; }
+  .identity-menu summary b { max-width: 24vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .header-logout-button { min-height: 38px; padding: 0 12px; }
+  .logout-long { display: none; }
+  .logout-short { display: inline; }
   .date-line { display: none; }
   main { width: calc(100% - 26px); margin: 14px auto; padding: 0 22px 50px; }
   .intro { padding: 45px 0 36px; }
@@ -544,6 +553,7 @@ input::placeholder { font-family: var(--sans); }
 }
 
 @media (max-width: 540px) {
+  .identity-menu summary b { display: none; }
   .identity-avatar-grid { grid-template-columns: repeat(4, 1fr); }
   .eyebrow span:first-child { display: none; }
   h1 { font-size: 61px; }

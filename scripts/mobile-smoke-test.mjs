@@ -81,21 +81,24 @@ const result = await evaluate(`(async () => {
   const persisted = (localStorage.getItem("weiji-community-replies") || "").includes("愿你今晚先照顾好自己");
   const sessionHasAvatar = (JSON.parse(localStorage.getItem("weiji-community-session") || "null")?.avatar_url || "").startsWith("/assets/avatars/");
   const headerHasAvatar = document.querySelector(".header-avatar")?.classList.contains("has-avatar") || false;
-  return { width: innerWidth, fontSize, beforeScale, afterScale, replySaved, persisted, avatarSelected, sessionHasAvatar, headerHasAvatar };
+  const logoutVisible = Boolean(document.querySelector(".header-logout-button")?.offsetParent);
+  return { width: innerWidth, fontSize, beforeScale, afterScale, replySaved, persisted, avatarSelected, sessionHasAvatar, headerHasAvatar, logoutVisible };
 })()`);
 
 if (result.width !== 390) throw new Error(`Unexpected viewport width: ${result.width}`);
 if (result.fontSize < 16) throw new Error(`Reply input is still ${result.fontSize}px`);
 if (!result.replySaved || !result.persisted) throw new Error("Reply flow did not finish or persist");
 if (!result.avatarSelected || !result.sessionHasAvatar || !result.headerHasAvatar) throw new Error("Avatar was not selected or persisted");
+if (!result.logoutVisible) throw new Error("Logout button is not visible on mobile after login");
 await send("Page.reload", { ignoreCache: true });
 await wait(900);
 const restoredAfterReload = await evaluate(`({
   avatar: document.querySelector(".header-avatar")?.classList.contains("has-avatar") || false,
   loggedIn: Boolean(document.querySelector(".identity-menu")),
   loginDialogClosed: !document.querySelector("#identity-name"),
+  logoutVisible: Boolean(document.querySelector(".header-logout-button")?.offsetParent),
 })`);
-if (!restoredAfterReload.avatar || !restoredAfterReload.loggedIn || !restoredAfterReload.loginDialogClosed) {
+if (!restoredAfterReload.avatar || !restoredAfterReload.loggedIn || !restoredAfterReload.loginDialogClosed || !restoredAfterReload.logoutVisible) {
   throw new Error("Login session or avatar disappeared after reload");
 }
 result.restoredAfterReload = restoredAfterReload;
