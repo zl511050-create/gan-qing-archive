@@ -69,18 +69,28 @@ export function ArchiveApp() {
   }, []);
 
   useEffect(() => {
-    const hydrationTimer = window.setTimeout(() => {
+    let active = true;
+    const hydrationTimer = window.setTimeout(async () => {
       try {
         const records = JSON.parse(localStorage.getItem("weiji-records") || "[]");
-        setRecordCount(Array.isArray(records) ? records.length : 0);
+        if (active) setRecordCount(Array.isArray(records) ? records.length : 0);
       } catch {
-        setRecordCount(0);
+        if (active) setRecordCount(0);
       }
-      const session = communityService.getCurrentUser();
-      setCurrentUser(session);
-      if (!session && localStorage.getItem("weiji-identity-invited") !== "yes") {
+      const cachedSession = communityService.getCurrentUser();
+      setCurrentUser(cachedSession);
+      if (!cachedSession && localStorage.getItem("weiji-identity-invited") !== "yes") {
         setIdentityOpen(true);
         localStorage.setItem("weiji-identity-invited", "yes");
+      }
+      if (cachedSession) {
+        const restoredSession = await communityService.restoreSession();
+        if (!active) return;
+        setCurrentUser(restoredSession);
+        if (!restoredSession) {
+          setIdentityRequired(true);
+          setIdentityOpen(true);
+        }
       }
     }, 0);
     Object.values(modes).forEach((mode) => {
@@ -88,6 +98,7 @@ export function ArchiveApp() {
       image.src = mode.background;
     });
     return () => {
+      active = false;
       if (switchTimer.current) window.clearTimeout(switchTimer.current);
       if (toastTimer.current) window.clearTimeout(toastTimer.current);
       window.clearTimeout(hydrationTimer);

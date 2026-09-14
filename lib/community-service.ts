@@ -21,6 +21,7 @@ export interface CreateNoteInput {
 
 export interface CommunityDataService {
   getCurrentUser(): CommunityUser | null;
+  restoreSession(): Promise<CommunityUser | null>;
   register(username: string, password: string, avatarUrl?: string): Promise<CommunityUser>;
   login(username: string, password: string): Promise<CommunityUser>;
   updateAvatar(user: CommunityUser, avatarUrl: string): Promise<CommunityUser>;
@@ -95,7 +96,13 @@ function toCommunityNote(row: Record<string, unknown>): CommunityNote {
 
 class LocalCommunityService implements CommunityDataService {
   getCurrentUser() {
-    return read<CommunityUser | null>(KEYS.session, null);
+    const session = read<CommunityUser | null>(KEYS.session, null);
+    if (!session || !session.id || !session.username || !session.token) return null;
+    return session;
+  }
+
+  async restoreSession() {
+    return this.getCurrentUser();
   }
 
   async register(username: string, password: string, avatarUrl?: string) {
@@ -217,6 +224,36 @@ class LocalCommunityService implements CommunityDataService {
 class SupabaseCommunityService extends LocalCommunityService {
   constructor(private readonly client: NonNullable<typeof supabase>) {
     super();
+  }
+
+  override async restoreSession() {
+    const session = await super.restoreSession();
+    if (!session) return null;
+    try {
+      const { data, error } = await this.client.rpc("restore_community_session", {
+        p_user_id: session.id,
+        p_session_token: session.token,
+      });
+      if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row) {
+        this.logout();
+        return null;
+      }
+      const restored: CommunityUser = {
+        id: String(row.id),
+        username: String(row.username),
+        token: session.token,
+        avatar_url: row.avatar_url || undefined,
+        created_at: String(row.created_at),
+      };
+      write(KEYS.session, restored);
+      return restored;
+    } catch {
+      // Keep the last valid local session while offline; it will be checked again
+      // the next time the page is opened with a working connection.
+      return session;
+    }
   }
 
   override async register(username: string, password: string, avatarUrl?: string) {

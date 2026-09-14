@@ -14,6 +14,7 @@ create unique index if not exists users_username_lower_unique on public.users (l
 drop function if exists public.register_community_user(text, text);
 drop function if exists public.register_community_user(text, text, text);
 drop function if exists public.login_community_user(text, text);
+drop function if exists public.restore_community_session(uuid, text);
 
 create function public.register_community_user(p_username text, p_password text, p_avatar_url text default null)
 returns table (id uuid, username text, avatar_url text, created_at timestamptz, session_token text)
@@ -65,6 +66,18 @@ begin
 end;
 $$;
 
+create function public.restore_community_session(p_user_id uuid, p_session_token text)
+returns table (id uuid, username text, avatar_url text, created_at timestamptz)
+language sql security definer set search_path = public, pg_temp stable
+as $$
+  select app_user.id, app_user.username, app_user.avatar_url, app_user.created_at
+  from public.users as app_user
+  where app_user.id = p_user_id
+    and app_user.session_token_hash is not null
+    and app_user.session_token_hash = extensions.crypt(p_session_token, app_user.session_token_hash)
+  limit 1;
+$$;
+
 create or replace function public.update_community_user_avatar(p_user_id uuid, p_session_token text, p_avatar_url text)
 returns table (id uuid, username text, avatar_url text, created_at timestamptz)
 language plpgsql security definer set search_path = public, pg_temp
@@ -86,7 +99,9 @@ drop policy if exists "community users" on public.users;
 revoke all privileges on table public.users from anon, authenticated;
 revoke all on function public.register_community_user(text, text, text) from public;
 revoke all on function public.login_community_user(text, text) from public;
+revoke all on function public.restore_community_session(uuid, text) from public;
 revoke all on function public.update_community_user_avatar(uuid, text, text) from public;
 grant execute on function public.register_community_user(text, text, text) to anon, authenticated;
 grant execute on function public.login_community_user(text, text) to anon, authenticated;
+grant execute on function public.restore_community_session(uuid, text) to anon, authenticated;
 grant execute on function public.update_community_user_avatar(uuid, text, text) to anon, authenticated;
