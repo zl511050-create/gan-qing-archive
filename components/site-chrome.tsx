@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { CuteAudioPlayer } from "@/components/cute-audio-player";
 import type { CommunityUser } from "@/data/archive";
 
@@ -18,7 +19,12 @@ export function SiteHeader({ recordCount, user, onLogin, onLogout, onDeactivate,
         <span className="brand-mark">未</span>
         <span>未寄</span>
       </a>
-      <p className="date-line">今天，也允许想起。</p>
+      <div className="header-middle">
+        <p className="date-line">今天，也允许想起。</p>
+        <Link className="game-entry" href="/game" aria-label="进入深海垂钓小游戏">
+          <span aria-hidden="true">🐟</span><b>深海垂钓</b>
+        </Link>
+      </div>
       {user ? (
         <div className="identity-actions">
           <details className="identity-menu">

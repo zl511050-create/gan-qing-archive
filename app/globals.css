@@ -61,6 +61,10 @@ a:focus-visible { outline: 2px solid #0f172a; outline-offset: 3px; }
 .brand { display: flex; align-items: center; gap: 10px; color: inherit; text-decoration: none; font-weight: 700; letter-spacing: .12em; }
 .brand-mark { display: grid; place-items: center; width: 29px; height: 29px; color: var(--paper); background: var(--ink); border-radius: 50%; font-size: 13px; }
 .date-line { margin: 0; color: var(--muted); font-size: 13px; letter-spacing: .08em; }
+.header-middle { display: flex; align-items: center; justify-self: center; gap: 18px; }
+.game-entry { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 14px; color: #183b49; border: 1px solid rgba(31,92,108,.2); border-radius: 999px; background: rgba(223,242,240,.82); box-shadow: 0 5px 14px rgba(26,74,88,.08); text-decoration: none; white-space: nowrap; transition: transform .18s ease, background .18s ease, box-shadow .18s ease; }
+.game-entry:hover { transform: translateY(-1px); background: #d4f0ed; box-shadow: 0 7px 17px rgba(26,74,88,.13); }
+.game-entry b { font-size: 12px; font-weight: 700; letter-spacing: .04em; }
 .quiet-button { justify-self: end; border: 0; background: none; cursor: pointer; font-size: 13px; letter-spacing: .08em; }
 .quiet-button span { display: inline-grid; place-items: center; width: 27px; height: 27px; margin-left: 8px; color: var(--paper); background: var(--ink); border-radius: 50%; font: 10px var(--mono); }
 .identity-actions { display: flex; align-items: center; justify-self: end; gap: 13px; min-width: 0; }
@@ -507,7 +511,10 @@ input::placeholder { font-family: var(--sans); }
   .comment-form input { min-height: 44px; padding: 10px 0; line-height: 1.4; }
   .comment-form button { min-width: 54px; min-height: 44px; }
   .comment-drawer { scroll-margin-bottom: 32vh; }
-  .site-header { grid-template-columns: 1fr auto; padding: 0 22px; }
+  .site-header { grid-template-columns: auto 1fr auto; gap: 9px; padding: 0 16px; }
+  .header-middle { gap: 0; }
+  .game-entry { min-height: 34px; padding: 0 11px; }
+  .game-entry b { font-size: 11px; }
   .identity-actions { gap: 8px; }
   .identity-menu summary { gap: 6px; }
   .identity-menu summary b { max-width: 24vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -553,6 +560,9 @@ input::placeholder { font-family: var(--sans); }
 }
 
 @media (max-width: 540px) {
+  .brand { gap: 7px; font-size: 13px; }
+  .brand-mark { width: 27px; height: 27px; }
+  .game-entry b { font-size: 10px; }
   .identity-menu summary b { display: none; }
   .identity-avatar-grid { grid-template-columns: repeat(4, 1fr); }
   .eyebrow span:first-child { display: none; }

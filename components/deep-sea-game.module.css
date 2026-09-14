@@ -1,0 +1,126 @@
+.page {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  color: #f4fbff;
+  background: #050d18;
+  font-family: var(--sans);
+}
+
+.phone {
+  position: relative;
+  width: min(100vw, 430px);
+  height: 100dvh;
+  max-height: 932px;
+  overflow: hidden;
+  isolation: isolate;
+  background: #071d31;
+  box-shadow: 0 0 70px rgba(38, 116, 145, .2);
+}
+
+.stage {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.stage canvas { display: block; width: 100% !important; height: 100% !important; touch-action: none; }
+
+.hud {
+  position: absolute;
+  z-index: 5;
+  top: max(14px, env(safe-area-inset-top));
+  left: 14px;
+  right: 14px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: start;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.metric { display: grid; gap: 2px; text-shadow: 0 2px 12px rgba(0,0,0,.45); }
+.metric:last-child { justify-items: end; }
+.metric span { color: rgba(229,248,255,.7); font-size: 9px; letter-spacing: .08em; }
+.metric strong { font: 700 19px var(--mono); letter-spacing: 0; }
+.phase { padding: 7px 11px; border: 1px solid rgba(255,255,255,.18); border-radius: 999px; background: rgba(4,18,32,.36); backdrop-filter: blur(10px); font-size: 11px; white-space: nowrap; }
+
+.topActions { position: absolute; z-index: 8; top: max(67px, calc(env(safe-area-inset-top) + 53px)); left: 12px; right: 12px; display: flex; justify-content: space-between; pointer-events: none; }
+.iconButton { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; color: #eefaff; border: 1px solid rgba(255,255,255,.2); border-radius: 50%; background: rgba(3,16,29,.42); backdrop-filter: blur(10px); cursor: pointer; pointer-events: auto; font-size: 17px; }
+.actionGroup { display: flex; gap: 8px; }
+
+.overlay {
+  position: absolute;
+  z-index: 12;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  padding: max(30px, env(safe-area-inset-top)) 26px max(30px, env(safe-area-inset-bottom));
+  text-align: center;
+  background: linear-gradient(180deg, rgba(4,18,34,.22), rgba(3,12,24,.73));
+  backdrop-filter: blur(3px);
+}
+
+.kicker { margin: 0 0 12px; color: #9de4e8; font: 10px var(--mono); letter-spacing: .15em; }
+.overlay h1, .overlay h2 { margin: 0; color: #f4fbff; font-family: var(--serif); font-weight: 700; letter-spacing: .05em; text-shadow: 0 3px 20px rgba(0,0,0,.38); }
+.overlay h1 { font-size: 43px; }
+.overlay h2 { font-size: 32px; }
+.lead { max-width: 310px; margin: 16px 0 25px; color: rgba(237,249,252,.78); font-size: 13px; line-height: 1.9; }
+.primary { min-width: 190px; min-height: 50px; padding: 0 24px; color: #092334; border: 0; border-radius: 999px; background: #d5f5ed; box-shadow: 0 10px 30px rgba(83,217,203,.2); cursor: pointer; font-weight: 750; }
+.secondary { min-height: 42px; padding: 0 18px; color: #eafaff; border: 1px solid rgba(255,255,255,.24); border-radius: 999px; background: rgba(255,255,255,.08); cursor: pointer; }
+.buttonRow { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.pauseSettings { display: flex; gap: 8px; margin: -8px 0 20px; }
+.settingButton { min-width: 92px; min-height: 38px; padding: 0 14px; color: #eafaff; border: 1px solid rgba(255,255,255,.2); border-radius: 6px; background: rgba(255,255,255,.08); cursor: pointer; font-size: 12px; }
+.settingButton[aria-pressed="true"] { color: #092334; border-color: #bff5ed; background: #ccefe9; }
+
+.records { display: grid; grid-template-columns: repeat(2, 1fr); width: min(290px, 100%); gap: 1px; margin: 0 0 24px; overflow: hidden; border: 1px solid rgba(255,255,255,.15); border-radius: 6px; background: rgba(255,255,255,.12); }
+.records div { padding: 13px 8px; background: rgba(3,17,30,.55); }
+.records span { display: block; color: rgba(224,245,250,.64); font-size: 9px; }
+.records strong { display: block; margin-top: 4px; font: 700 19px var(--mono); }
+
+.resultLine { margin: 12px 0 6px; color: #b9eef0; font-size: 13px; }
+.resultScore { margin: 0 0 16px; font: 700 48px var(--mono); }
+.newFish { margin: 0 0 20px; color: #ffe5ad; font-size: 12px; }
+.resultSpecies { display: flex; justify-content: center; align-items: center; min-height: 42px; margin: -4px 0 10px; }
+.resultFish { width: 38px; height: 38px; margin-left: -7px; background-image: url('/game/fish-atlas-v2.png'); background-size: 400% 200%; background-position: var(--fish-x) var(--fish-y); filter: drop-shadow(0 2px 5px rgba(111,236,239,.32)); }
+.resultFish:first-child { margin-left: 0; }
+.resultFishNew { outline: 1px solid rgba(255,224,153,.85); outline-offset: 1px; border-radius: 50%; filter: drop-shadow(0 0 8px rgba(255,220,145,.66)); }
+
+.guide { position: absolute; z-index: 4; left: 50%; bottom: max(30px, calc(env(safe-area-inset-bottom) + 18px)); transform: translateX(-50%); width: max-content; color: rgba(231,249,251,.7); font-size: 11px; text-shadow: 0 2px 12px #00101f; pointer-events: none; animation: guidePulse 2s ease-in-out infinite; }
+
+.catalog { align-content: start; overflow-y: auto; padding-top: max(84px, calc(env(safe-area-inset-top) + 70px)); background: rgba(3,13,25,.88); backdrop-filter: blur(18px); }
+.catalogGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; max-width: 360px; gap: 9px; margin: 22px 0; }
+.fishCard { display: grid; grid-template-columns: 54px 1fr; align-items: center; min-height: 72px; padding: 9px; text-align: left; border: 1px solid rgba(255,255,255,.12); border-radius: 6px; background: rgba(255,255,255,.06); }
+.fishPreview { width: 50px; height: 50px; background-image: url('/game/fish-atlas-v2.png'); background-size: 400% 200%; background-position: var(--fish-x) var(--fish-y); filter: drop-shadow(0 0 6px rgba(137,232,239,.28)); }
+.swiftPreview { background-image: url('/game/swift-fish.png'); background-repeat: no-repeat; background-position: center; background-size: contain; }
+.fishCard.locked .fishPreview { filter: grayscale(1) brightness(.25); opacity: .65; }
+.fishCard b { display: block; font-size: 12px; }
+.fishCard span { display: block; margin-top: 4px; color: rgba(226,245,249,.58); font-size: 9px; }
+
+.rotate { position: absolute; z-index: 30; inset: 0; display: none; place-items: center; padding: 30px; text-align: center; background: #061523; }
+.rotate strong { display: block; margin-bottom: 10px; font-family: var(--serif); font-size: 24px; }
+.rotate span { color: rgba(235,249,252,.68); font-size: 13px; }
+
+@keyframes guidePulse { 50% { opacity: .45; transform: translateX(-50%) translateY(4px); } }
+
+@media (pointer: coarse) and (orientation: landscape) {
+  .rotate { display: grid; }
+}
+
+@media (min-width: 431px) {
+  .phone { height: min(100dvh, 932px); border-left: 1px solid rgba(255,255,255,.08); border-right: 1px solid rgba(255,255,255,.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide { animation: none; }
+}

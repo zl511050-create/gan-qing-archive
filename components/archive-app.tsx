@@ -107,6 +107,7 @@ export function ArchiveApp() {
 
   useEffect(() => {
     document.body.dataset.themeMode = displayMode;
+    return () => { delete document.body.dataset.themeMode; };
   }, [displayMode]);
 
   useEffect(() => {
