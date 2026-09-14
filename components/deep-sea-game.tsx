@@ -609,22 +609,24 @@ export function DeepSeaGame() {
           this.externalPause = false;
           this.darkness?.setVisible(false);
           this.line.setDepth(20);
-          audioRef.current.setAbyss(false);
-          audioRef.current.setPaused(false);
-          audioRef.current.endAscent();
+          this.runFeedback(() => {
+            audioRef.current.setAbyss(false);
+            audioRef.current.setPaused(false);
+            audioRef.current.endAscent();
+          });
           this.emitHud(true);
         }
 
         setPaused(paused: boolean) {
           this.externalPause = paused;
-          audioRef.current.setPaused(paused);
+          this.runFeedback(() => audioRef.current.setPaused(paused));
           if (paused && this.phase !== "ready" && this.phase !== "results") {
             this.previousPhase = this.phase;
             this.phase = "paused";
-            audioRef.current.endAscent();
+            this.runFeedback(() => audioRef.current.endAscent());
           } else if (!paused && this.phase === "paused") {
             this.phase = this.previousPhase;
-            if (this.phase === "ascending") audioRef.current.beginAscent();
+            if (this.phase === "ascending") this.runFeedback(() => audioRef.current.beginAscent());
           }
           this.emitHud(true);
         }
@@ -638,13 +640,28 @@ export function DeepSeaGame() {
           if (this.phase !== "descending") return;
           this.phase = "ascending";
           this.previousPhase = "ascending";
-          audioRef.current.beginAscent();
-          this.contactFeedback("ascent");
           this.emitHud(true);
+          this.runFeedback(() => {
+            audioRef.current.beginAscent();
+            this.contactFeedback("ascent");
+          });
+        }
+
+        private runFeedback(effect: () => void) {
+          try {
+            effect();
+          } catch {
+            // Device feedback is optional and must never interrupt the game loop.
+          }
         }
 
         private vibrate(pattern: number | number[]) {
-          if (hapticsRef.current && typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(pattern);
+          if (!hapticsRef.current || typeof navigator === "undefined" || typeof navigator.vibrate !== "function") return;
+          try {
+            navigator.vibrate(pattern);
+          } catch {
+            // Some embedded mobile browsers expose vibrate but reject calls.
+          }
         }
 
         private contactFeedback(kind: "catch" | "new" | "obstacle" | "ascent") {
@@ -699,16 +716,18 @@ export function DeepSeaGame() {
           this.catchesValue += 1;
           const isNewSpecies = !this.discovered.has(entity.definition.id);
           this.discovered.add(entity.definition.id);
-          if (this.phase === "ascending" && isNewSpecies) this.addTrophyFish(entity.definition);
-          this.createCatchBurst(entity.sprite.x, this.hook.y);
-          this.showCatchLabel(isNewSpecies ? `新相遇 · ${entity.definition.name}` : `+${points}`, isNewSpecies ? "#ffe7a8" : "#d5fff5", isNewSpecies ? -92 : -66);
-          this.contactFeedback(isNewSpecies ? "new" : "catch");
-          audioRef.current.catchFish(entity.definition.capturePitch ?? 520, entity.visualSize, isNewSpecies, this.comboValue);
-          if ([3, 6, 10].includes(this.comboValue)) {
-            audioRef.current.comboMilestone(this.comboValue);
-            this.showCatchLabel(`${this.comboValue} 连击`, "#a8f6ff", -120);
-          }
           this.emitHud(true);
+          this.runFeedback(() => {
+            if (this.phase === "ascending" && isNewSpecies) this.addTrophyFish(entity.definition);
+            this.createCatchBurst(entity.sprite.x, this.hook.y);
+            this.showCatchLabel(`+${points}`, isNewSpecies ? "#ffe7a8" : "#d5fff5", -66);
+            this.contactFeedback(isNewSpecies ? "new" : "catch");
+            audioRef.current.catchFish(entity.definition.capturePitch ?? 520, entity.visualSize, isNewSpecies, this.comboValue);
+            if ([3, 6, 10].includes(this.comboValue)) {
+              audioRef.current.comboMilestone(this.comboValue);
+              this.showCatchLabel(`${this.comboValue} 连击`, "#a8f6ff", -120);
+            }
+          });
         }
 
         private addTrophyFish(definition: FishDefinition) {
@@ -746,15 +765,17 @@ export function DeepSeaGame() {
           entity.object.setVisible(false);
           if (entity.power === "shield") this.shield = true;
           else this.magnetUntil = this.time.now + 5000;
-          audioRef.current.power(entity.power === "shield" ? 690 : 820);
           this.emitHud(true);
+          this.runFeedback(() => audioRef.current.power(entity.power === "shield" ? 690 : 820));
         }
 
         private finishRun() {
           this.phase = "results";
-          audioRef.current.endAscent();
-          audioRef.current.setAbyss(false);
-          audioRef.current.setPaused(true);
+          this.runFeedback(() => {
+            audioRef.current.endAscent();
+            audioRef.current.setAbyss(false);
+            audioRef.current.setPaused(true);
+          });
           const result: RunSummary = {
             score: this.scoreValue,
             maxDepth: Math.round(this.maxDepthValue),
@@ -794,7 +815,7 @@ export function DeepSeaGame() {
           this.particles.setAlpha(abyssActive ? .34 : 1);
           if (abyssActive === this.abyssWasActive) return;
           this.abyssWasActive = abyssActive;
-          audioRef.current.setAbyss(abyssActive);
+          this.runFeedback(() => audioRef.current.setAbyss(abyssActive));
           if (abyssActive && this.phase === "descending") {
             const title = this.add.text(WORLD_WIDTH / 2, 178, "幽光深渊\n500–800m", {
               align: "center",
@@ -852,7 +873,7 @@ export function DeepSeaGame() {
           } else {
             const ascentSpeed = this.descentSpeed() * 3;
             this.depthValue = Math.max(0, this.depthValue - ascentSpeed * seconds);
-            audioRef.current.setReelSpeed(ascentSpeed);
+            this.runFeedback(() => audioRef.current.setReelSpeed(ascentSpeed));
             if (this.depthValue <= 0) this.finishRun();
           }
           this.updateAbyssVisuals();
@@ -898,8 +919,8 @@ export function DeepSeaGame() {
             const collisionX = 20 + entity.visualSize * .14;
             if (Math.abs(entity.sprite.y - hookY) < collisionY && Math.abs(entity.sprite.x - this.hookX) < collisionX) {
               if (this.phase === "descending") {
-                this.catchFish(entity);
                 this.beginAscent();
+                this.catchFish(entity);
               } else {
                 this.catchFish(entity);
               }
@@ -915,18 +936,21 @@ export function DeepSeaGame() {
             entity.object.rotation = Math.sin(this.time.now / 900 + entity.oceanDepth) * .055;
             if (entity.hitCooldown <= 0 && Math.abs(y - hookY) < entity.radius && Math.abs(entity.object.x - this.hookX) < entity.radius) {
               entity.hitCooldown = 1;
-              this.contactFeedback("obstacle");
-              audioRef.current.obstacle();
+              const shieldAbsorbed = this.phase === "ascending" && this.shield;
               if (this.phase === "descending") {
                 this.beginAscent();
-              } else if (this.shield) {
+              } else if (shieldAbsorbed) {
                 this.shield = false;
-                audioRef.current.power(720);
               } else {
                 this.comboValue = 0;
                 this.comboExpiresAt = 0;
               }
               this.emitHud(true);
+              this.runFeedback(() => {
+                this.contactFeedback("obstacle");
+                if (shieldAbsorbed) audioRef.current.power(720);
+                else audioRef.current.obstacle();
+              });
             }
           });
 
@@ -1018,7 +1042,11 @@ export function DeepSeaGame() {
     setSummary(null);
     setCatalogOpen(false);
     setManuallyPaused(false);
-    await audioRef.current.start();
+    try {
+      await audioRef.current.start();
+    } catch {
+      audioRef.current.enabled = false;
+    }
     runtimeRef.current?.start();
   };
 
@@ -1043,7 +1071,9 @@ export function DeepSeaGame() {
       const next = { ...current, hapticsEnabled: !current.hapticsEnabled };
       hapticsRef.current = next.hapticsEnabled;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      if (next.hapticsEnabled && "vibrate" in navigator) navigator.vibrate(12);
+      if (next.hapticsEnabled && typeof navigator.vibrate === "function") {
+        try { navigator.vibrate(12); } catch { /* Optional on embedded browsers. */ }
+      }
       return next;
     });
   };
