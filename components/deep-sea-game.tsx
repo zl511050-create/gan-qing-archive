@@ -107,8 +107,8 @@ class OceanAudio {
   private ambientGain: GainNode | null = null;
   private sfxGain: GainNode | null = null;
   private ambientOscillators: OscillatorNode[] = [];
-  private reelOscillator: OscillatorNode | null = null;
-  private reelGain: GainNode | null = null;
+  private ascentActive = false;
+  private lastReelTickAt = 0;
   private abyssActive = false;
   private paused = false;
   enabled = true;
@@ -214,29 +214,24 @@ class OceanAudio {
   beginAscent() {
     this.noise(.28, .055, 680);
     this.tone(220, .3, .06, "triangle");
-    if (!this.enabled || !this.context || !this.sfxGain || this.reelOscillator) return;
-    const oscillator = this.context.createOscillator();
-    const gain = this.context.createGain();
-    oscillator.type = "sawtooth";
-    oscillator.frequency.value = 46;
-    gain.gain.value = .012;
-    oscillator.connect(gain).connect(this.sfxGain);
-    oscillator.start();
-    this.reelOscillator = oscillator;
-    this.reelGain = gain;
+    this.ascentActive = true;
+    this.lastReelTickAt = 0;
   }
 
   endAscent() {
-    this.reelOscillator?.stop();
-    this.reelOscillator?.disconnect();
-    this.reelOscillator = null;
-    this.reelGain = null;
+    this.ascentActive = false;
+    this.lastReelTickAt = 0;
   }
 
   setReelSpeed(speed: number) {
-    if (!this.context || !this.reelOscillator || !this.reelGain) return;
-    this.reelOscillator.frequency.setTargetAtTime(40 + speed * .11, this.context.currentTime, .12);
-    this.reelGain.gain.setTargetAtTime(.009 + Math.min(speed, 100) * .000045, this.context.currentTime, .12);
+    if (!this.enabled || !this.context || !this.sfxGain || !this.ascentActive || this.paused) return;
+    const now = this.context.currentTime;
+    const interval = .31 - Math.min(speed, 100) * .00045;
+    if (now - this.lastReelTickAt < interval) return;
+    this.lastReelTickAt = now;
+    const pitch = 310 + Math.min(speed, 100) * .65;
+    this.tone(pitch, .055, .012, "triangle");
+    this.tone(pitch * 1.42, .035, .006, "sine", .018);
   }
 
   setAbyss(active: boolean) {
@@ -294,6 +289,7 @@ export function DeepSeaGame() {
   const runtimeRef = useRef<GameRuntime | null>(null);
   const audioRef = useRef(new OceanAudio());
   const hapticsRef = useRef(true);
+  const knownAtRunStartRef = useRef<Set<string>>(new Set());
   const [progress, setProgress] = useState<SavedProgress>(defaultProgress);
   const [hud, setHud] = useState<HudState>({ phase: "ready", depth: 0, score: 0, catches: 0, combo: 0, shield: false, magnet: false });
   const [summary, setSummary] = useState<RunSummary | null>(null);
@@ -307,12 +303,21 @@ export function DeepSeaGame() {
     hapticsRef.current = saved.hapticsEnabled;
   }, []);
 
+  const discoverFish = useCallback((fishId: string) => {
+    setProgress((current) => {
+      if (current.discovered.includes(fishId)) return current;
+      const next = { ...current, discovered: [...current.discovered, fishId] };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   const finishRun = useCallback((result: RunSummary) => {
     setHud((current) => ({ ...current, phase: "results", depth: 0 }));
     setProgress((current) => {
       setSummary({
         ...result,
-        newDiscoveries: result.discovered.filter((id) => !current.discovered.includes(id)),
+        newDiscoveries: result.discovered.filter((id) => !knownAtRunStartRef.current.has(id)),
       });
       const next: SavedProgress = {
         ...current,
@@ -716,6 +721,7 @@ export function DeepSeaGame() {
           this.catchesValue += 1;
           const isNewSpecies = !this.discovered.has(entity.definition.id);
           this.discovered.add(entity.definition.id);
+          discoverFish(entity.definition.id);
           this.emitHud(true);
           this.runFeedback(() => {
             if (this.phase === "ascending" && isNewSpecies) this.addTrophyFish(entity.definition);
@@ -871,7 +877,7 @@ export function DeepSeaGame() {
               this.beginAscent();
             }
           } else {
-            const ascentSpeed = this.descentSpeed() * 3;
+            const ascentSpeed = this.descentSpeed() * 2.5;
             this.depthValue = Math.max(0, this.depthValue - ascentSpeed * seconds);
             this.runFeedback(() => audioRef.current.setReelSpeed(ascentSpeed));
             if (this.depthValue <= 0) this.finishRun();
@@ -1025,7 +1031,7 @@ export function DeepSeaGame() {
       runtimeRef.current = null;
       gameAudio.stop();
     };
-  }, [finishRun]);
+  }, [discoverFish, finishRun]);
 
   useEffect(() => {
     const handleVisibility = () => {
@@ -1042,6 +1048,7 @@ export function DeepSeaGame() {
     setSummary(null);
     setCatalogOpen(false);
     setManuallyPaused(false);
+    knownAtRunStartRef.current = new Set(progress.discovered);
     try {
       await audioRef.current.start();
     } catch {
@@ -1167,6 +1174,11 @@ export function DeepSeaGame() {
           <div className={`${styles.overlay} ${styles.catalog}`}>
             <p className={styles.kicker}>DEEP SEA FRIENDS</p>
             <h2>鱼类图鉴</h2>
+            <p className={styles.catalogPromise}>收集所有的鱼，你将不再需要感情。</p>
+            <div className={styles.catalogProgress} aria-label={`已捕获 ${progress.discovered.length} 种，共 ${fishDefinitions.length} 种`}>
+              <span style={{ width: `${progress.discovered.length / fishDefinitions.length * 100}%` }} />
+              <b>{progress.discovered.length} / {fishDefinitions.length}</b>
+            </div>
             <div className={styles.catalogGrid}>
               {fishDefinitions.map((fish) => {
                 const unlocked = progress.discovered.includes(fish.id);
@@ -1177,7 +1189,10 @@ export function DeepSeaGame() {
                 return (
                   <article className={`${styles.fishCard}${unlocked ? "" : ` ${styles.locked}`}`} key={fish.id}>
                     <span className={`${styles.fishPreview}${isSwift ? ` ${styles.swiftPreview}` : ""}`} style={previewStyle} aria-hidden="true" />
-                    <div><b>{unlocked ? fish.name : "尚未遇见"}</b><span>{unlocked ? fish.note : "继续向更深处看看"}</span></div>
+                    <div className={styles.fishDetails}>
+                      <div className={styles.fishTitle}><b>{fish.name}</b><em>{unlocked ? "已捕获" : "未捕获"}</em></div>
+                      <span>{unlocked ? fish.note : "它还藏在更深的海里"}</span>
+                    </div>
                   </article>
                 );
               })}

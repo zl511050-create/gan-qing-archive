@@ -99,13 +99,21 @@
 .guide { position: absolute; z-index: 4; left: 50%; bottom: max(30px, calc(env(safe-area-inset-bottom) + 18px)); transform: translateX(-50%); width: max-content; color: rgba(231,249,251,.7); font-size: 11px; text-shadow: 0 2px 12px #00101f; pointer-events: none; animation: guidePulse 2s ease-in-out infinite; }
 
 .catalog { align-content: start; overflow-y: auto; padding-top: max(84px, calc(env(safe-area-inset-top) + 70px)); background: rgba(3,13,25,.88); backdrop-filter: blur(18px); }
-.catalogGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; max-width: 360px; gap: 9px; margin: 22px 0; }
+.catalogPromise { max-width: 290px; margin: 10px 0 14px; color: rgba(224,245,250,.66); font-family: var(--serif); font-size: 12px; line-height: 1.7; }
+.catalogProgress { position: relative; width: min(260px, 82%); height: 20px; overflow: hidden; border: 1px solid rgba(255,255,255,.14); border-radius: 4px; background: rgba(255,255,255,.06); }
+.catalogProgress span { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, rgba(95,211,204,.45), rgba(194,245,230,.65)); transition: width .3s ease; }
+.catalogProgress b { position: relative; z-index: 1; display: grid; place-items: center; height: 100%; color: #eefcff; font: 700 9px var(--mono); }
+.catalogGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; max-width: 360px; gap: 9px; margin: 16px 0 22px; }
 .fishCard { display: grid; grid-template-columns: 54px 1fr; align-items: center; min-height: 72px; padding: 9px; text-align: left; border: 1px solid rgba(255,255,255,.12); border-radius: 6px; background: rgba(255,255,255,.06); }
 .fishPreview { width: 50px; height: 50px; background-image: url('/game/fish-atlas-v2.png'); background-size: 400% 200%; background-position: var(--fish-x) var(--fish-y); filter: drop-shadow(0 0 6px rgba(137,232,239,.28)); }
 .swiftPreview { background-image: url('/game/swift-fish.png'); background-repeat: no-repeat; background-position: center; background-size: contain; }
 .fishCard.locked .fishPreview { filter: grayscale(1) brightness(.25); opacity: .65; }
-.fishCard b { display: block; font-size: 12px; }
-.fishCard span { display: block; margin-top: 4px; color: rgba(226,245,249,.58); font-size: 9px; }
+.fishDetails { min-width: 0; }
+.fishTitle { display: flex; align-items: center; justify-content: space-between; gap: 5px; }
+.fishTitle b { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.fishTitle em { flex: none; padding: 2px 4px; color: #bdf2df; border: 1px solid rgba(150,231,212,.2); border-radius: 3px; background: rgba(92,197,177,.1); font-size: 7px; font-style: normal; }
+.locked .fishTitle em { color: rgba(226,245,249,.43); border-color: rgba(255,255,255,.1); background: rgba(255,255,255,.04); }
+.fishDetails > span { display: block; margin-top: 5px; color: rgba(226,245,249,.58); font-size: 8px; line-height: 1.45; }
 
 .rotate { position: absolute; z-index: 30; inset: 0; display: none; place-items: center; padding: 30px; text-align: center; background: #061523; }
 .rotate strong { display: block; margin-bottom: 10px; font-family: var(--serif); font-size: 24px; }
