@@ -82,6 +82,25 @@ export function CuteAudioPlayer() {
     }
   }, [currentIndex, startCurrentTrack]);
 
+  useEffect(() => {
+    if (!autoplayBlocked) return;
+
+    const resumeAfterInteraction = () => {
+      if (audioRef.current?.paused) void startCurrentTrack();
+    };
+
+    // Desktop and mobile browsers can reject audible autoplay until the first
+    // user gesture. Retry inside that gesture so visitors need not find the
+    // small player control before the music can begin.
+    document.addEventListener("pointerdown", resumeAfterInteraction, { capture: true, once: true });
+    document.addEventListener("keydown", resumeAfterInteraction, { capture: true, once: true });
+
+    return () => {
+      document.removeEventListener("pointerdown", resumeAfterInteraction, true);
+      document.removeEventListener("keydown", resumeAfterInteraction, true);
+    };
+  }, [autoplayBlocked, startCurrentTrack]);
+
   useEffect(() => () => stopFade(), [stopFade]);
 
   const advanceTrack = useCallback((forcePlay?: boolean) => {
@@ -141,7 +160,7 @@ export function CuteAudioPlayer() {
       <audio
         ref={audioRef}
         src={track.src}
-        preload="metadata"
+        preload="auto"
         autoPlay
         onEnded={() => advanceTrack(true)}
         onPause={() => setIsPlaying(false)}

@@ -56,17 +56,15 @@ const result = await evaluate(`(async () => {
   const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const identity = document.querySelector("#identity-name");
   if (!identity) throw new Error("Identity dialog did not open on first visit");
-  const avatarInput = document.querySelector(".avatar-picker input[type=file]");
-  const avatarBlob = await fetch("/assets/glass-letter-3d.jpg").then((response) => response.blob());
-  const transfer = new DataTransfer();
-  transfer.items.add(new File([avatarBlob], "mobile-avatar.jpg", { type: avatarBlob.type }));
-  Object.defineProperty(avatarInput, "files", { value: transfer.files, configurable: true });
-  avatarInput.dispatchEvent(new Event("change", { bubbles: true }));
-  await pause(500);
-  const avatarPreviewed = document.querySelector(".avatar-picker").classList.contains("has-avatar");
-  setReactValue(identity, "手机流程测试");
+  document.querySelector('.identity-action-tabs button:nth-child(2)').click();
+  await pause(50);
+  const password = document.querySelector("#identity-password");
+  setReactValue(identity, "手机流程测试-" + Date.now());
+  setReactValue(password, "2468");
+  document.querySelector(".identity-avatar-grid button")?.click();
+  const avatarSelected = Boolean(document.querySelector(".identity-avatar-grid button.selected"));
   identity.closest("form").querySelector("button[type=submit]").click();
-  await pause(350);
+  await pause(500);
   document.querySelector("#community").scrollIntoView();
   const commentButton = document.querySelector(".story-card .comment-button");
   commentButton.click();
@@ -81,19 +79,25 @@ const result = await evaluate(`(async () => {
   const afterScale = visualViewport?.scale || 1;
   const replySaved = [...document.querySelectorAll(".reply-bubble")].some((node) => node.textContent.includes("愿你今晚先照顾好自己"));
   const persisted = (localStorage.getItem("weiji-community-replies") || "").includes("愿你今晚先照顾好自己");
-  const sessionHasAvatar = (JSON.parse(localStorage.getItem("weiji-community-session") || "null")?.avatar_url || "").startsWith("data:image/");
+  const sessionHasAvatar = (JSON.parse(localStorage.getItem("weiji-community-session") || "null")?.avatar_url || "").startsWith("/assets/avatars/");
   const headerHasAvatar = document.querySelector(".header-avatar")?.classList.contains("has-avatar") || false;
-  return { width: innerWidth, fontSize, beforeScale, afterScale, replySaved, persisted, avatarPreviewed, sessionHasAvatar, headerHasAvatar };
+  return { width: innerWidth, fontSize, beforeScale, afterScale, replySaved, persisted, avatarSelected, sessionHasAvatar, headerHasAvatar };
 })()`);
 
 if (result.width !== 390) throw new Error(`Unexpected viewport width: ${result.width}`);
 if (result.fontSize < 16) throw new Error(`Reply input is still ${result.fontSize}px`);
 if (!result.replySaved || !result.persisted) throw new Error("Reply flow did not finish or persist");
-if (!result.avatarPreviewed || !result.sessionHasAvatar || !result.headerHasAvatar) throw new Error("Avatar was not previewed or persisted");
+if (!result.avatarSelected || !result.sessionHasAvatar || !result.headerHasAvatar) throw new Error("Avatar was not selected or persisted");
 await send("Page.reload", { ignoreCache: true });
 await wait(900);
-const avatarAfterReload = await evaluate(`document.querySelector(".header-avatar")?.classList.contains("has-avatar") || false`);
-if (!avatarAfterReload) throw new Error("Avatar disappeared after reload");
-result.avatarAfterReload = avatarAfterReload;
+const restoredAfterReload = await evaluate(`({
+  avatar: document.querySelector(".header-avatar")?.classList.contains("has-avatar") || false,
+  loggedIn: Boolean(document.querySelector(".identity-menu")),
+  loginDialogClosed: !document.querySelector("#identity-name"),
+})`);
+if (!restoredAfterReload.avatar || !restoredAfterReload.loggedIn || !restoredAfterReload.loginDialogClosed) {
+  throw new Error("Login session or avatar disappeared after reload");
+}
+result.restoredAfterReload = restoredAfterReload;
 console.log(JSON.stringify(result, null, 2));
 socket.close();
