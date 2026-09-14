@@ -272,7 +272,7 @@ export function ArchiveApp() {
 
         <figure className="interlude-cinema" aria-label="通往远方的城市阶梯氛围画面">
           <NextImage
-            src="/stairs1.jpg"
+            src="/stairs2.jpg"
             alt="阳光与绿意环绕的城市阶梯"
             fill
             sizes="(max-width: 860px) calc(100vw - 70px), 90vw"
